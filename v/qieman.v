@@ -32,6 +32,7 @@ module qieman #(
       input                clk      ,
       input                rst_n    ,
       input    [DW-1:0]    din_i    ,
+      
       output   [DW-1:0]    dout_o    
    );
    

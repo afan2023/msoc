@@ -246,11 +246,11 @@ description: $R_v[7:0] => [Ra + Imm << shift]$
 
 ###### MOV
 
-syntax: MOV Rd Ra
+syntax: MOV Rd Rb
 
 description:
 
-​	$R_d <= R_a$
+​	$R_d <= R_b$
 
 ###### MOVIL
 
@@ -587,10 +587,13 @@ $offset = Imm << 2$
 |      | 31 - 26 | 25 - 22  | 21 - 18         | 17 - 16 | 15- 0    | Instructions                |
 | ---- | ------- | -------- | --------------- | ------- | -------- | --------------------------- |
 | RRI  | opcode  | $R_d$    | $R_a$           | op ext  | Imm      | ADDI, SUBI, ANDI, ORI, XORI |
+| RR_  | opcode  | $R_d$    | $R_a$           | op ext  | reserved | legacy MOV, no more used    |
 | R_I  | opcode  | $R_d$    | reserved (4'b0) | op ext  | Imm      | MOVIL, MOVIH                |
 | _RI  | opcode  | reserved | $R_a$           | op ext  | reserved | JR                          |
 | __I  | opcode  | reserved | reserved        | op ext  | Imm      | BEQ, BNE, BGE, BLT          |
 | RSI  | opcode  | $R_d$    | shift           | op ext. | Imm      | J, JL                       |
+
+##### 
 
 |      | 31 - 26 | 25 - 22 | 21 - 18        | 17 - 16 | 15 - 4          | 3 - 0 | Instructions                              |
 | ---- | ------- | ------- | -------------- | ------- | --------------- | ----- | ----------------------------------------- |
@@ -600,6 +603,8 @@ $offset = Imm << 2$
 |      | 31 - 26 | 25 - 22 | 21 - 18 | 17 - 16 | 15 - 5   | 4 - 0 | Instructions   |
 | ---- | ------- | ------- | ------- | ------- | -------- | ----- | -------------- |
 | RR_i | opcode  | $R_d$   | $R_a$   | opext   | reserved | Imm   | SLI, SRI, SRAI |
+
+##### 
 
 |      | 31 - 26 | 25 - 22 | 21 - 18 | 17 - 16 | 15 - 12 | 11 - 0 | Instructions                         |
 | ---- | ------- | ------- | ------- | ------- | ------- | ------ | ------------------------------------ |

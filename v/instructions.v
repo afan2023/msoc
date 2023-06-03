@@ -39,4 +39,17 @@
 `define  OPCODE_SR      6'b011001
 `define  OPCODE_SRA     6'b011011
 
+`define  OPCODE_MOV     6'b000100
+`define  OPCODE_MOVIL   6'b000101
+`define  OPCODE_MOVIH   6'b000110
+
+`define  OPCODE_LDBU    6'b001000
+`define  OPCODE_LDHWU   6'b001001
+`define  OPCODE_LDW     6'b001011
+`define  OPCODE_LDB     6'b001000
+`define  OPCODE_LDHW    6'b001001
+`define  OPCODE_STB     6'b001100
+`define  OPCODE_STHW    6'b001101
+`define  OPCODE_STW     6'b001111
+
 `define  OPCODE_NOP     6'b000000

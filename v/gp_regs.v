@@ -13,12 +13,15 @@ module gp_regs (
    input    [1:0]       wr_scope_i  , // scope of write (bit 1: high half, bit 0: low half)
    
    input    [3:0]       ra_index_i  , // reg a index to read
-   input                ren_a_i     , // read enable reg n
+   input                ren_a_i     , // read enable reg a
    input    [3:0]       rb_index_i  , // reg b index
    input                ren_b_i     , // read enable - reg b
+   input    [3:0]       rm_index_i  , // reg m index
+   input                ren_m_i     , // read enable - reg m   
 
    output reg [31:0]    rvalue_a_o  , // data value of reg a read
-   output reg [31:0]    rvalue_b_o    // data value of reg b read
+   output reg [31:0]    rvalue_b_o  , // data value of reg b read
+   output reg [31:0]    rvalue_m_o    // data value of reg b read
    );
    
    reg [31:0]  regs  [15:0];
@@ -36,7 +39,7 @@ module gp_regs (
       else if (wen_i) begin
          case (wr_scope_i)
             2'b01: regs[reg_w_idx_i][15:0] <= wdata_i[15:0];
-            2'b10: regs[reg_w_idx_i][31:16] <= wdata_i[31:16];
+            2'b10: regs[reg_w_idx_i][31:16] <= wdata_i[15:0];
             2'b11: regs[reg_w_idx_i] <= wdata_i;
             default: ; // such default case shall not happen
          endcase
@@ -56,5 +59,10 @@ module gp_regs (
    else
       rvalue_b_o = regs[rb_index_i];
    
+   always @(*)
+   if (!rst_n | !ren_m_i)
+      rvalue_m_o = GPR_DEFAULT_VAL;
+   else
+      rvalue_m_o = regs[rm_index_i];   
    
 endmodule

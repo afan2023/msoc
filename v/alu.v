@@ -24,9 +24,6 @@ module alu (
    );
    
    wire  [3:0] opcat;
-   localparam  OPCAT_ADDSUB   =  4'b0100;
-   localparam  OPCAT_LOGIC    =  4'b0101;
-   localparam  OPCAT_SHIFT    =  4'b0110;
    assign opcat = opcode_i[5:2];
    
    reg   [31:0]   adder_b_i_r;
@@ -51,7 +48,7 @@ module alu (
             adder_b_i_r = ~ oprand_b_i;
             adder_c_i_r = 1'b1;
          end
-         default:  begin
+         default:  begin // the mem operations (LD/ST) also covered here
             adder_b_i_r = oprand_b_i;
             adder_c_i_r = 1'b0;
          end
@@ -118,7 +115,7 @@ module alu (
       end
       else begin 
          case (opcat)
-            `INSTR_OPCAT_ADDSUB :
+            `INSTR_OPCAT_ADDSUB, `INSTR_OPCAT_LD, `INSTR_OPCAT_ST :
                result_o <= adder_s_o;
             `INSTR_OPCAT_LOGIC :
                result_o <= logic_out_r;
