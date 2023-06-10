@@ -1,3 +1,32 @@
+//////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2023, c.fan                                                      
+//                                                                                
+// Redistribution and use in source and binary forms, with or without             
+// modification, are permitted provided that the following conditions are met:    
+//                                                                                
+// 1. Redistributions of source code must retain the above copyright notice, this 
+//    list of conditions and the following disclaimer.                            
+//                                                                                
+// 2. Redistributions in binary form must reproduce the above copyright notice,   
+//    this list of conditions and the following disclaimer in the documentation   
+//    and/or other materials provided with the distribution.                      
+//                                                                                
+// 3. Neither the name of the copyright holder nor the names of its               
+//    contributors may be used to endorse or promote products derived from        
+//    this software without specific prior written permission.                    
+//                                                                                
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"    
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE      
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE   
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL     
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR     
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER     
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,  
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
+//////////////////////////////////////////////////////////////////////////////////
+
 /**
  * ALU
  */
@@ -10,7 +39,7 @@ module alu (
    
    // from instr_dec
    input    [5:0]       opcode_i    ,
-//   input    [1:0]       opext_i     ,
+   // input    [1:0]       opext_i     ,
    input                signed_i    ,
    
    // from oprand_gen
@@ -18,8 +47,9 @@ module alu (
    input    [31:0]      oprand_b_i  ,
    
    // output
-   output reg [31:0]    result_o    ,
-   output reg [31:0]    flags_o        
+   output reg  [31:0]   result_o    ,
+   output reg           flags_chg_o ,
+   output reg  [3:0]    flags_o        
    
    );
    
@@ -78,7 +108,7 @@ module alu (
       endcase
    end
    
-   assign arithm_flag_neg = arithm_signed ? (~adder_s_o[31]) : 1'b0;
+   assign arithm_flag_neg = arithm_signed ? (adder_s_o[31]) : 1'b0;
    assign arithm_flag_zero = ~(|adder_s_o);
    
    reg   [31:0]   logic_out_r;
@@ -115,13 +145,33 @@ module alu (
       end
       else begin 
          case (opcat)
-            `INSTR_OPCAT_ADDSUB, `INSTR_OPCAT_LD, `INSTR_OPCAT_ST :
+            `INSTR_OPCAT_ADDSUB, `INSTR_OPCAT_LD, `INSTR_OPCAT_ST, 
+               `INSTR_OPCAT_B, `INSTR_OPCAT_J :
                result_o <= adder_s_o;
             `INSTR_OPCAT_LOGIC :
                result_o <= logic_out_r;
             `INSTR_OPCAT_SHIFT :
                result_o <= shift_out_r;
             default: ;
+         endcase
+      end
+   end
+   
+   always @(posedge clk or negedge rst_n) begin
+      if (!rst_n) begin
+         flags_o <= 4'b0;
+         flags_chg_o <= 1'b0;
+      end
+      else begin
+         case (opcat)
+            `INSTR_OPCAT_ADDSUB : begin
+               flags_o <= {1'b0, arithm_flag_neg, arithm_flag_zero, arithm_flag_ov};
+               flags_chg_o <= 1'b1;
+            end
+            default : begin
+               flags_o <= 4'b0;
+               flags_chg_o <= 1'b0;
+            end
          endcase
       end
    end

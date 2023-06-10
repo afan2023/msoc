@@ -276,6 +276,8 @@ description:
 
 syntax: BEQ where
 
+note:	offset = #Imm << 2, the target address = PC + offset
+
 description:
 
 ​	$if\ (equal)\ then\\ PC <= PC + offset$
@@ -318,7 +320,7 @@ syntax: JR Ra
 
 description:
 
-​	$PC <= PC + R_a$
+​	$PC <= R_a$
 
 ###### JL
 
@@ -334,7 +336,7 @@ syntax: JLR Rd Ra #Imm
 
 description:
 
-​	$PC <= R_a + Imm \\ R_d <= PC + 4$
+​	$PC <= R_a + Imm<<2 \\ R_d <= PC + 4$
 
 Note: in case the offset might be too large to be accommodated by an immediate number in the instruction, the compiler may insert a JR or JLR to relay... (to think over)
 
@@ -377,7 +379,7 @@ description: halt the processor
 
 ADD & ADDU give the same binary result output, however the flags (overflow, negative) are different.
 
-SUB & SUBU case is similar.
+SUB & SUBU are similar.
 
 
 
@@ -550,7 +552,7 @@ $offset = Imm << 2$
 
 $offset = Imm << shift << 2$
 
-
+​	#imm<<shift
 
 ###### JR
 
@@ -584,14 +586,15 @@ $offset = Imm << 2$
 
 
 
-|      | 31 - 26 | 25 - 22  | 21 - 18         | 17 - 16 | 15- 0    | Instructions                |
-| ---- | ------- | -------- | --------------- | ------- | -------- | --------------------------- |
-| RRI  | opcode  | $R_d$    | $R_a$           | op ext  | Imm      | ADDI, SUBI, ANDI, ORI, XORI |
-| RR_  | opcode  | $R_d$    | $R_a$           | op ext  | reserved | legacy MOV, no more used    |
-| R_I  | opcode  | $R_d$    | reserved (4'b0) | op ext  | Imm      | MOVIL, MOVIH                |
-| _RI  | opcode  | reserved | $R_a$           | op ext  | reserved | JR                          |
-| __I  | opcode  | reserved | reserved        | op ext  | Imm      | BEQ, BNE, BGE, BLT          |
-| RSI  | opcode  | $R_d$    | shift           | op ext. | Imm      | J, JL                       |
+|       | 31 - 26 | 25 - 22  | 21 - 18         | 17 - 16 | 15- 0    | Instructions                |
+| ----- | ------- | -------- | --------------- | ------- | -------- | --------------------------- |
+| RRI   | opcode  | $R_d$    | $R_a$           | op ext  | Imm      | ADDI, SUBI, ANDI, ORI, XORI |
+| RR_   | opcode  | $R_d$    | $R_a$           | op ext  | reserved | legacy MOV, no more used    |
+| R_I   | opcode  | $R_d$    | reserved (4'b0) | op ext  | Imm      | MOVIL, MOVIH                |
+| `_R_` | opcode  | reserved | $R_a$           | op ext  | reserved | JR                          |
+| __I   | opcode  | reserved | reserved        | op ext  | Imm      | BEQ, BNE, BGE, BLT          |
+| _SI   | opcode  | reserved | shift           | op ext. | Imm      | J                           |
+| RSI   | opcode  | $R_d$    | shift           | op ext. | Imm      | JL                          |
 
 ##### 
 
@@ -608,5 +611,5 @@ $offset = Imm << 2$
 
 |      | 31 - 26 | 25 - 22 | 21 - 18 | 17 - 16 | 15 - 12 | 11 - 0 | Instructions                         |
 | ---- | ------- | ------- | ------- | ------- | ------- | ------ | ------------------------------------ |
-| RRSI | opcode  | $R_v$   | $R_a$   | opext   | shift   | Imm    | LDW, LDHW(U), LDB(U), STW, STHW, STB |
+| RRsI | opcode  | $R_v$   | $R_a$   | opext   | shift   | Imm    | LDW, LDHW(U), LDB(U), STW, STHW, STB |
 

@@ -1,3 +1,33 @@
+//////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2023, c.fan                                                      
+//                                                                                
+// Redistribution and use in source and binary forms, with or without             
+// modification, are permitted provided that the following conditions are met:    
+//                                                                                
+// 1. Redistributions of source code must retain the above copyright notice, this 
+//    list of conditions and the following disclaimer.                            
+//                                                                                
+// 2. Redistributions in binary form must reproduce the above copyright notice,   
+//    this list of conditions and the following disclaimer in the documentation   
+//    and/or other materials provided with the distribution.                      
+//                                                                                
+// 3. Neither the name of the copyright holder nor the names of its               
+//    contributors may be used to endorse or promote products derived from        
+//    this software without specific prior written permission.                    
+//                                                                                
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"    
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE      
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE   
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL     
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR     
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER     
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,  
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
+//////////////////////////////////////////////////////////////////////////////////
+
+
 /**
  * instruction data dependency detection
  */
@@ -20,7 +50,15 @@ module ddep_detect (
    // input    [3:0]    regwb_idx_i , // write back reg index
    
    // detected conflict
-   output            conflict_o        
+   output            conflict_o  ,
+   
+   // fast check interface, 
+   // use this to check for just one register conflict
+   // against yet to complete previous instructions, 
+   // use this before dec phase!
+   // todo for future, maybe all change to fast to save resource, now just fix up the need.
+   input    [3:0]    fast_read_reg_idx_i ,
+   output            fast_conflict_o      
    );
    
    localparam  PPGAP_DEC2WB = 4;
@@ -49,7 +87,6 @@ module ddep_detect (
          end
       end
    end
-   
 
    reg [PPGAP_DEC2WB-1:0] conflict_bitmap_r;
    always @(*) begin
@@ -63,5 +100,24 @@ module ddep_detect (
       end 
    end
    assign conflict_o = | conflict_bitmap_r;
+   
+   // yet another reg2wr to record in fast case, 
+   // because the fast detect is before dec, one more cycle need to complete
+   //reg [3:0] fast_ya_reg2wr; 
+   //always @(posedge clk) begin
+   //   if (!rst_n) 
+   //      fast_ya_reg2wr <= INVALID_REGW_INDEX;
+   //   else
+   //      fast_ya_reg2wr <= regs2wr_r[PPGAP_DEC2WB-1];
+   //end
+   //reg [PPGAP_DEC2WB:0] fast_conflict_r;
+   reg [PPGAP_DEC2WB-1:0] fast_conflict_r;
+   always @(*) begin
+      for (i=0; i<PPGAP_DEC2WB; i=i+1) begin
+         fast_conflict_r[i] = &(regs2wr_r[i] ~^ {1'b1, fast_read_reg_idx_i});
+      end
+      //fast_conflict_r[PPGAP_DEC2WB] = &(fast_ya_reg2wr ~^ {1'b1, fast_read_reg_idx_i});
+   end
+   assign fast_conflict_o = |fast_conflict_r;
    
 endmodule

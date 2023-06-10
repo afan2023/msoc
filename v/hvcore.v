@@ -1,3 +1,32 @@
+//////////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2023, c.fan                                                      
+//                                                                                
+// Redistribution and use in source and binary forms, with or without             
+// modification, are permitted provided that the following conditions are met:    
+//                                                                                
+// 1. Redistributions of source code must retain the above copyright notice, this 
+//    list of conditions and the following disclaimer.                            
+//                                                                                
+// 2. Redistributions in binary form must reproduce the above copyright notice,   
+//    this list of conditions and the following disclaimer in the documentation   
+//    and/or other materials provided with the distribution.                      
+//                                                                                
+// 3. Neither the name of the copyright holder nor the names of its               
+//    contributors may be used to endorse or promote products derived from        
+//    this software without specific prior written permission.                    
+//                                                                                
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"    
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE      
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+// DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE   
+// FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL     
+// DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR     
+// SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER     
+// CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,  
+// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
+//////////////////////////////////////////////////////////////////////////////////
+
 `include "instructions.v"
 
 module hvcore (
@@ -50,6 +79,11 @@ module hvcore (
    wire           instr_dec_ren_m_o     ;
    wire [3:0]     instr_dec_reg_m_idx_o ;
    
+   // interface with csreg 
+   wire  [31:0]   instr_dec_csreg_i           ;
+   wire           instr_dec_aluflags_pending_i;
+   wire           instr_dec_aluflags_ahead_o  ;
+   
    // output for execution code
    wire [5:0]     instr_dec_opcode_o    ;
    wire           instr_dec_signed_o    ;
@@ -59,10 +93,16 @@ module hvcore (
    wire [3:0]     instr_dec_reg_d_idx_o ; 
    wire [1:0]     instr_dec_wrd_scope_o ; // scope of write (bit 1: high half, bit 0: low half)
    
-   // interface with pipeline control
-   wire           instr_dec_stall_i     ;  
-   wire           instr_dec_d_conflict_o;
+   // interface with jump & pipeline control
+   wire           instr_dec_stall_i       ;  
+   wire           instr_dec_d_conflict_o  ;
+   wire           instr_dec_need_ddep2j_transit_o;
+   wire           instr_dec_will_jump_o   ;
+   wire           instr_dec_pc_based_jmp_o;
+   wire           instr_dec_jump_req_o    ; // stall request pulse   
+   wire           instr_dec_jump_exe_i    ; 
    
+   // assign   instr_dec_jump_exe_i = jmpex_jump_done_o;
    instr_dec u_instr_dec (
       .clk         (clk) ,
       .rst_n       (rst_n) ,
@@ -81,6 +121,11 @@ module hvcore (
       .ren_m_o     (instr_dec_ren_m_o) ,
       .reg_m_idx_o (instr_dec_reg_m_idx_o) ,
       
+      // interface with csreg 
+      .csreg_i             (instr_dec_csreg_i), 
+      .aluflags_pending_i  (instr_dec_aluflags_pending_i),
+      .aluflags_ahead_o    (instr_dec_aluflags_ahead_o),
+      
       .opcode_o    (instr_dec_opcode_o) ,
       .signed_o    (instr_dec_signed_o) ,
       
@@ -89,8 +134,13 @@ module hvcore (
       .reg_d_idx_o (instr_dec_reg_d_idx_o) , 
       .wrd_scope_o (instr_dec_wrd_scope_o) , // scope of write (bit 1: high half, bit 0: low half)
       
-      .stall_i     (instr_dec_stall_i)     ,
-      .d_conflict_o(instr_dec_d_conflict_o)
+      .stall_i       (instr_dec_stall_i)        ,
+      .d_conflict_o  (instr_dec_d_conflict_o)   ,
+      .need_ddep2j_transit_o  (instr_dec_need_ddep2j_transit_o),
+      .will_jump_o   (instr_dec_will_jump_o)    ,
+      .pc_based_jmp_o(instr_dec_pc_based_jmp_o) ,
+      .jump_req_o    (instr_dec_jump_req_o)     , // stall request pulse
+      .jump_exe_i    (instr_dec_jump_exe_i)
    );
    
    wire  [3:0]    gpr_reg_w_idx_i ; // index of reg to write
@@ -123,25 +173,34 @@ module hvcore (
       .rvalue_m_o  (gpr_rvalue_m_o) 
    );
    
+   // current instruction address
+   wire    [31:0]      opgen_i_addr_i    ;
    // output data as oprands;
    wire    [31:0]      opgen_oprand_a_o  ;
    wire    [31:0]      opgen_oprand_b_o  ;  
-   
+   // of course it's OK to pass the pc value thru the pipeline, 
+   // but when will execute jumping, the PC shall be stalled,
+   //    so PC mod output keep being the B & J instruction address
+   assign   opgen_i_addr_i =  instr_addr_o;  
    oprand_gen u_oprand_gen (
-      .clk         (clk) ,
-      .rst_n       (rst_n) ,
+      .clk              (clk) ,
+      .rst_n            (rst_n) ,
+            
+      .ren_a_i          (instr_dec_ren_a_o) ,   
+      .ren_b_i          (instr_dec_ren_b_o) ,
+      .imm_valid_i      (instr_dec_imm_valid_o) ,
+      .imm_raw_i        (instr_dec_imm_raw_o) ,
+      .imm_rule_i       (instr_dec_imm_rule_o) ,
       
-      .ren_a_i     (instr_dec_ren_a_o) ,   
-      .ren_b_i     (instr_dec_ren_b_o) ,
-      .imm_valid_i (instr_dec_imm_valid_o) ,
-      .imm_raw_i   (instr_dec_imm_raw_o) ,
-      .imm_rule_i  (instr_dec_imm_rule_o) ,
+      .pc_based_jump_i  (instr_dec_pc_based_jmp_o) ,
       
-      .ra_value_i  (gpr_rvalue_a_o) ,
-      .rb_value_i  (gpr_rvalue_b_o) ,
-      
-      .oprand_a_o  (opgen_oprand_a_o) ,
-      .oprand_b_o  (opgen_oprand_b_o) 
+      .ra_value_i       (gpr_rvalue_a_o) ,
+      .rb_value_i       (gpr_rvalue_b_o) ,
+            
+      .i_addr_i         (opgen_i_addr_i) ,
+            
+      .oprand_a_o       (opgen_oprand_a_o) ,
+      .oprand_b_o       (opgen_oprand_b_o) 
    );
    
    // from instr_dec
@@ -170,6 +229,7 @@ module hvcore (
    
    // output
    wire [31:0]    alu_result_o    ;
+   wire           alu_flags_chg_o ;
    wire [31:0]    alu_flags_o     ;     
    
    alu u_alu (
@@ -183,8 +243,28 @@ module hvcore (
       .oprand_b_i  (opgen_oprand_b_o) ,
       
       .result_o    (alu_result_o) ,
+      .flags_chg_o (alu_flags_chg_o) ,
       .flags_o     (alu_flags_o)       
    );
+
+
+   // from dec (one pulse per one case)
+   wire           csreg_aluflags_ahead_i  ;
+   // the current reg value;
+   wire  [31:0]   csreg_csreg_o           ;
+   wire           csreg_aluflags_pending_o; 
+   
+   csreg u_csreg(
+      .clk                  (clk  )  ,
+      .rst_n                (rst_n  )  ,
+      .aluflags_ahead_i     (instr_dec_aluflags_ahead_o  )  , // one pulse per one case
+      .aluflags_wen_i       (alu_flags_chg_o  )  , // one pulse per one case
+      .aluflags_i           (alu_flags_o  )  ,
+      .csreg_o              (csreg_csreg_o  )  ,
+      .aluflags_pending_o   (csreg_aluflags_pending_o  )     
+   );
+   assign   instr_dec_csreg_i =  csreg_csreg_o;
+   assign   instr_dec_aluflags_pending_i  =  csreg_aluflags_pending_o;
    
    // from dec 
    wire    [5:0]       memex_opcode_i;
@@ -298,9 +378,19 @@ module hvcore (
    // wire     [31:0]      wb_mem_i       ;  // from data memory (dcache)
 
    wire     [31:0]      wb_wrdata_o    ;
-   wire                 wb_wr_allowed_o;
-     
-      
+   wire                 wb_wr_allowed_o;     
+   
+   qieman #(
+      .DW      (32),
+      .DEFAULT (`OPCODE_NOP),
+      .CYCLES  (5)
+   ) up_dec2wb_pc_qieman (
+      .clk     (clk)    ,
+      .rst_n   (rst_n)  ,
+      .din_i   (instr_addr_o+4) ,
+      .dout_o  (wb_pc_i)
+   );
+   
    qieman #(
       .DW      (6),
       .DEFAULT (`OPCODE_NOP),
@@ -347,8 +437,7 @@ module hvcore (
          
       .wrdata_o      (wb_wrdata_o) ,
       .wr_allowed_o  (wb_wr_allowed_o)
-   );
-   
+   );   
 
    qieman #(
       .DW      (4),
@@ -387,15 +476,65 @@ module hvcore (
       .dout_o  (gpr_wr_scope_i)
    );   
    
-   wire     pp_ctrl_stall_dec_o ;
+   // from dec, jump request pulse
+   wire           jmpex_jump_req_i  ;   
+   // output to pc;
+   wire  [31:0]   jmpex_new_pc_o    ;
+   wire           jmpex_change_pc_o ;
+   // signal that jump made;
+   wire           jmpex_jump_done_o ;  
+   // signal the jump request too ealy
+   // TODO: need signal the jump request exactly on time!!!
+   //    //assign   jmpex_jump_req_i  =  instr_dec_jump_req_o;
+   qieman #(
+      .DW      (1),
+      .DEFAULT (1'b0),
+      .CYCLES  (2)
+   ) up_dec2jmpexe_wr_scope_qieman (
+      .clk     (clk)    ,
+      .rst_n   (rst_n)  ,
+      .din_i   (instr_dec_jump_req_o) ,   
+      .dout_o  (jmpex_jump_req_i)
+   );   
+   jmp_exe u_jmp_exe(
+      .clk         (clk) ,
+      .rst_n       (rst_n) ,
+      // from dec, jump request pulse 
+      .jump_req_i  (jmpex_jump_req_i) ,   
+      // from alu 
+      .j2addr_i    (alu_result_o) ,
+      // output to pc
+      .new_pc_o    (jmpex_new_pc_o) ,
+      .change_pc_o (jmpex_change_pc_o) ,
+      // signal that jump execute
+      .jump_done_o (jmpex_jump_done_o) 
+   );
+   assign   instr_dec_jump_exe_i = jmpex_jump_done_o;
+   
+   assign   pc_new_pc_i    =  jmpex_new_pc_o;
+   assign   pc_change_pc_i =  jmpex_change_pc_o;
+   
+   wire  pp_ctrl_stall_2pc_o  ;
+   wire  pp_ctrl_stall_2dec_o ;   
+   
    pp_ctrl u_pp_ctrl (
       .clk               (clk) ,
       .rst_n             (rst_n) ,
+      // data (GPR) dependency
       .ddep_conflict_i   (instr_dec_d_conflict_o) ,
-      .stall_dec_o       (pp_ctrl_stall_dec_o) 
+      // ddep stall to jmp stall transit
+      .need_ddep2j_transit_i  (instr_dec_need_ddep2j_transit_o),
+      // b & j stall request
+      .bj_req_i          (instr_dec_jump_req_o) ,
+      // b/j jump made, must be one pulse signal
+      .bj_done_i         (jmpex_jump_done_o) , 
+   
+      // should have seperate stall signals
+      .stall_2pc_o       (pp_ctrl_stall_2pc_o) ,
+      .stall_2dec_o      (pp_ctrl_stall_2dec_o)
    );
    
-   assign instr_dec_stall_i = pp_ctrl_stall_dec_o;
-   assign pc_stall_i = pp_ctrl_stall_dec_o;
+   assign pc_stall_i = pp_ctrl_stall_2pc_o;
+   assign instr_dec_stall_i = pp_ctrl_stall_2dec_o;
    
 endmodule

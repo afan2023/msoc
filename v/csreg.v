@@ -25,80 +25,65 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,  
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
-//////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////\
 
 /**
- * write back mux
- * -- combination logic version (instant data selection)
- *
- * the logic here is quite straight forward with very simple circuit
- */ 
+ * register of control & status flags
+ */
 
-`include "instructions.v"
-
-module wb_sel (
-   input                clk         ,
-   input                rst_n       ,
-   
-   input    [31:0]      pc_i        ,  // from pc
-   input    [5:0]       opcode_i    ,  // from dec
-   input    [31:0]      opgen_i     ,  // oprand_b from op_gen mod
-   input    [31:0]      alu_i       ,  // from alu execution
-   input    [31:0]      mem_i       ,  // from data memory access
-   input                mem_valid_i ,  // mem data valid or not
-   
-   output   [31:0]      wrdata_o    ,
-   output               wr_allowed_o
+module csreg (
+   input                clk               ,
+   input                rst_n             ,
+   // from dec
+   input                aluflags_ahead_i  , // one pulse per one case
+   // from alu
+   input                aluflags_wen_i    , // one pulse per one case
+   input       [3:0]    aluflags_i        ,
+   // the current reg value
+   output reg  [31:0]   csreg_o           ,
+   output               aluflags_pending_o   
    );
    
-   reg   [31:0]   wrdata_o_r;
-   reg   wr_allowed_r, init;
-   wire  [3:0]    opcat;
-   assign opcat = opcode_i[5:2];
+   reg   [31:0]   csreg_r;
+   reg   [2:0]    aluflags_yet2update_r;
+   reg            init;
    
    always @(*) begin
-      if (!rst_n) begin
-         wrdata_o_r = 32'b0;
-      end
-      else case (opcat)
-         `INSTR_OPCAT_ADDSUB, `INSTR_OPCAT_LOGIC, `INSTR_OPCAT_SHIFT : begin
-            wrdata_o_r = alu_i;
-         end
-         `INSTR_OPCAT_MOVE : begin
-            wrdata_o_r = opgen_i;
-         end
-         `INSTR_OPCAT_LD : begin
-            wrdata_o_r = mem_i;
-         end
-         `INSTR_OPCAT_J : begin // jump & link
-            wrdata_o_r = pc_i;
-         end
-         default: begin
-            wrdata_o_r = 32'b0;
-         end
-      endcase
-   end
-   
-   always @(*) begin
-      if (init) begin
-         wr_allowed_r = 1'b0;
-      end
-      else case (opcat) 
-         `INSTR_OPCAT_LD : wr_allowed_r = mem_valid_i;
-         default : wr_allowed_r = 1'b1;
-      endcase
+      if ((!rst_n) | init)
+         csreg_o = 1'b0;
+      else
+         csreg_o = csreg_r;
    end
    
    always @(posedge clk or negedge rst_n) begin
       if (!rst_n) begin
-         init = 1'b1;
+         csreg_r <= 32'b0;
+         init <= 1'b1;
       end
       else begin
-         init = 1'b0;
+         init <= 1'b0;
+         if (aluflags_wen_i)
+            csreg_r[3:0] <= aluflags_i;
       end
    end
    
-   assign wrdata_o = wrdata_o_r;
-   assign wr_allowed_o = wr_allowed_r;
-
+   always @(posedge clk or negedge rst_n) begin
+      if (!rst_n) begin
+         aluflags_yet2update_r <= 3'b0;
+      end
+      else begin
+         case ({aluflags_ahead_i,aluflags_wen_i})
+            2'b01 : 
+               aluflags_yet2update_r <= aluflags_yet2update_r - 1'b1;
+            2'b10 : 
+               aluflags_yet2update_r <= aluflags_yet2update_r + 1'b1;
+            default : begin
+               // don't change
+            end
+         endcase
+      end
+   end   
+   
+   assign aluflags_pending_o = (|aluflags_yet2update_r) | aluflags_ahead_i;
+   
 endmodule
