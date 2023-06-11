@@ -57,7 +57,7 @@ module wb_sel (
    assign opcat = opcode_i[5:2];
    
    always @(*) begin
-      if (!rst_n) begin
+      if (init) begin
          wrdata_o_r = 32'b0;
       end
       else case (opcat)

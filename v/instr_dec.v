@@ -130,6 +130,12 @@ module instr_dec (
          `INSTR_OPCAT_ADDSUB : begin
             signed_r <= opext[1];
          end
+         `INSTR_OPCAT_LOGIC : begin
+            signed_r <= 1'b0;
+         end
+         `INSTR_OPCAT_SHIFT : begin
+            signed_r <= opext[1];
+         end
          `INSTR_OPCAT_MOVE : begin
             signed_r <= 1'b0;
          end
@@ -171,6 +177,18 @@ module instr_dec (
       end
       else case (opcat)
          `INSTR_OPCAT_ADDSUB : begin
+            ren_a_r <= 1'b1;
+            ren_b_r <= opext[0] ? 1'b0 : 1'b1;
+            wen_d_r <= 1'b1;
+            wrd_scope_r <= 2'b11;
+         end
+         `INSTR_OPCAT_LOGIC : begin
+            ren_a_r <= 1'b1;
+            ren_b_r <= opext[0] ? 1'b0 : 1'b1;
+            wen_d_r <= 1'b1;
+            wrd_scope_r <= 2'b11;
+         end
+         `INSTR_OPCAT_SHIFT : begin
             ren_a_r <= 1'b1;
             ren_b_r <= opext[0] ? 1'b0 : 1'b1;
             wen_d_r <= 1'b1;
@@ -249,6 +267,16 @@ module instr_dec (
             imm_valid_r <= opext[0];
             imm_raw_r <= {4'b0, instr_i[15:0]};
             imm_rule_r <= `IMM_RULE_I16;
+         end
+         `INSTR_OPCAT_LOGIC : begin
+            imm_valid_r <= opext[0];
+            imm_raw_r <= {4'b0, instr_i[15:0]};
+            imm_rule_r <= `IMM_RULE_I16;
+         end
+         `INSTR_OPCAT_ADDSUB : begin
+            imm_valid_r <= opext[0];
+            imm_raw_r <= {4'b0, instr_i[15:0]};
+            imm_rule_r <= `IMM_RULE_I5;
          end
          `INSTR_OPCAT_MOVE : begin
             imm_valid_r <= opext[0];

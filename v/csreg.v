@@ -25,7 +25,7 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,  
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE  
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
-//////////////////////////////////////////////////////////////////////////////////\
+//////////////////////////////////////////////////////////////////////////////////
 
 /**
  * register of control & status flags
@@ -49,7 +49,7 @@ module csreg (
    reg            init;
    
    always @(*) begin
-      if ((!rst_n) | init)
+      if (init)
          csreg_o = 1'b0;
       else
          csreg_o = csreg_r;

@@ -29,7 +29,8 @@
 
 
 /**
- * instruction data dependency detection
+ * data dependency detection
+ * - general purpose register
  */
  
 module ddep_detect (
@@ -101,22 +102,11 @@ module ddep_detect (
    end
    assign conflict_o = | conflict_bitmap_r;
    
-   // yet another reg2wr to record in fast case, 
-   // because the fast detect is before dec, one more cycle need to complete
-   //reg [3:0] fast_ya_reg2wr; 
-   //always @(posedge clk) begin
-   //   if (!rst_n) 
-   //      fast_ya_reg2wr <= INVALID_REGW_INDEX;
-   //   else
-   //      fast_ya_reg2wr <= regs2wr_r[PPGAP_DEC2WB-1];
-   //end
-   //reg [PPGAP_DEC2WB:0] fast_conflict_r;
    reg [PPGAP_DEC2WB-1:0] fast_conflict_r;
    always @(*) begin
       for (i=0; i<PPGAP_DEC2WB; i=i+1) begin
          fast_conflict_r[i] = &(regs2wr_r[i] ~^ {1'b1, fast_read_reg_idx_i});
       end
-      //fast_conflict_r[PPGAP_DEC2WB] = &(fast_ya_reg2wr ~^ {1'b1, fast_read_reg_idx_i});
    end
    assign fast_conflict_o = |fast_conflict_r;
    
