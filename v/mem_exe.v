@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                      
+// Copyright (c) 2023, c.fan                                                     
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -55,18 +55,10 @@ module mem_exe (
    // to mem rx
    output reg           ren_o       , // reading?
    output reg [1:0]     scope_o     , // word(2'b11), half word(2'b01), or byte(2'b00)?
-   output reg [1:0]     signed_o    ,
+   output reg           signed_o    ,
    output reg [1:0]     addr_lsb2_o   // least 2 bits of the address
    );
-   
-   // should i use comb-logic here?
-   // the mem-cache itself will cost at least 1 cycle.
-   
-   // -> read : combinational logic to send address / read signal to mem-cache
-   //             check received data AND MAYBE EXCEPTIONAL SIGNALS on rising edge
-   // -> write : both combinatorial or sequential logic are ok, don't need care once written (handled to external circuit)
-     
-   
+    
    wire  [3:0] opcat;
    assign opcat = opcode_i[5:2];
    reg   init;
@@ -91,43 +83,10 @@ module mem_exe (
          default: begin
             mem_en_o = 1'b0;
             mem_wr_o = 1'b0;
+            mem_wscope_o = 2'b0;
          end
       endcase
    end
-
-//   // don't need such logic, the mem-cache is to take care
-//   always @(*) begin
-//      case (opcat)
-//         `INSTR_OPCAT_LD : begin
-//            mem_addr_o = {addr_i[31:2],2'b0};
-//            mem_wdata_o = 32'b0;
-//         end
-//         `INSTR_OPCAT_ST : begin
-//            case (opcode_i[1:0])
-//               2'b00 : begin
-//                  mem_addr_o = addr_i;
-//                  mem_wdata_o = {24'b0, wdata_i[7:0]};
-//               end
-//               2'b01 : begin
-//                  mem_addr_o = {addr_i[31:1], 1'b0};
-//                  mem_wdata_o = {16'b0, wdata_i[15:0]};
-//               end
-//               2'b11 : begin
-//                  mem_addr_o = {addr_i[31:2], 2'b0};
-//                  mem_wdata_o = wdata_i;
-//               end
-//               default : begin
-//                  mem_addr_o = addr_i;
-//                  mem_wdata_o = wdata_i;
-//               end
-//            endcase            
-//         end
-//         default : begin
-//            mem_addr_o = addr_i;
-//            mem_wdata_o = 32'b0;
-//         end
-//      endcase
-//   end
 
    always @(*) begin
       if (init) begin

@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                      
+// Copyright (c) 2023, c.fan                                                     
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -31,8 +31,6 @@
  * wait a moment
  */
 
- 
- 
 module qieman #(
       parameter   DW       = 32  ,
       parameter   DEFAULT  = 0   ,
@@ -40,9 +38,11 @@ module qieman #(
    )(
       input                clk      ,
       input                rst_n    ,
-      input    [DW-1:0]    din_i    ,
       
-      output   [DW-1:0]    dout_o    
+      input                hold_i   ,  // hold on!
+      
+      input    [DW-1:0]    din_i    ,
+      output   [DW-1:0]    dout_o   
    );
    
    reg   [DW-1:0] dout_r[CYCLES-1:0];
@@ -52,7 +52,7 @@ module qieman #(
          for (i=0; i<CYCLES; i=i+1)
             dout_r[i] <= DEFAULT;
       end
-      else begin
+      else if (!hold_i) begin
          dout_r[0] <= din_i;
          for (i=1; i<CYCLES; i=i+1)
             dout_r[i] <= dout_r[i-1];

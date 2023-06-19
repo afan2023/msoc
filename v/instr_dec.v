@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                      
+// Copyright (c) 2023, c.fan                                                     
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -68,6 +68,7 @@ module instr_dec (
    
    // interface with pipeline control
    input                stall_i        , // stall may be originated from dec itself:-) or mem
+   input                asif_nop_i     , // shall generate outputs as if work on a NOP
    output               d_conflict_o   , // data conflict
    output               need_ddep2j_transit_o   , // need a transit from data dependency to jmp stall
    // for jump
@@ -346,8 +347,8 @@ module instr_dec (
 //   assign aluflags_ahead_o = aluflags_ahead_r & (~aluflags_ahead_r1);
    
    // actually the only case to avoid is continuously generating aluflags_ahead when an add/sub is stalled
-      reg   aluflags_ahead_r;
-      always @(posedge clk or negedge rst_n) begin
+   reg   aluflags_ahead_r;
+   always @(posedge clk or negedge rst_n) begin
       if (!rst_n) begin
          aluflags_ahead_r <= 1'b0;
       end
@@ -402,22 +403,26 @@ module instr_dec (
    // but let's don't care, 
    // because it's a bad idea for next instructions to use that rd register
    
+   // don't hold on if next stages are still go on work
+   assign      ddep_det_hold_i = stall_i & (~asif_nop_i);
+   // for R_a early detect
    wire  [3:0] ra_idx_instant;
    assign      ra_idx_instant =  instr_i[`INSTR_FIELD_RA];
    wire        early_ra_conflict;
    ddep_detect u_ddep_detect (
-      .clk                 (clk        )     ,
-      .rst_n               (rst_n      )     ,   
-      .reg_w_idx_i         (reg_d_idx_o)     , 
-      .wen_i               (wen_d_o    )     ,
-      .reg_a_idx_i         (reg_a_idx_r)     , 
-      .ren_a_i             (ra_yet2read_r)   ,
-      .reg_b_idx_i         (reg_b_idx_r)     ,
-      .ren_b_i             (ren_b_r    )     ,     
-      .reg_m_idx_i         (reg_m_idx_r)     ,
-      .ren_m_i             (ren_m_r    )     ,       
-      .conflict_o          (gpreg_d_conflict),
-      .fast_read_reg_idx_i (ra_idx_instant)  ,
+      .clk                 (clk              ),
+      .rst_n               (rst_n            ),   
+      .reg_w_idx_i         (reg_d_idx_o      ), 
+      .wen_i               (wen_d_o          ),
+      .reg_a_idx_i         (reg_a_idx_r      ), 
+      .ren_a_i             (ra_yet2read_r    ),
+      .reg_b_idx_i         (reg_b_idx_r      ),
+      .ren_b_i             (ren_b_r          ),     
+      .reg_m_idx_i         (reg_m_idx_r      ),
+      .ren_m_i             (ren_m_r          ),    
+      .hold_i              (ddep_det_hold_i  ),
+      .conflict_o          (gpreg_d_conflict ),
+      .fast_read_reg_idx_i (ra_idx_instant   ),
       .fast_conflict_o     (early_ra_conflict)    
    );
    
@@ -514,7 +519,7 @@ module instr_dec (
    assign pc_based_jmp_o = will_jump_o & relative_jmp_instr_type_r;
    
    always @(*) begin
-      if (stall_i) begin // stalled
+      if (asif_nop_i) begin // stalled
          ren_a_o     =  1'b0  ;
          reg_a_idx_o =  4'b0  ;
          ren_b_o     =  1'b0  ;

@@ -1,0 +1,107 @@
+`timescale  1ns/100ps
+
+`include "fpga_params.v"
+
+module uart_tb;
+
+   reg            clk         ;
+   reg            rst_n       ;
+   reg   [31:0]   addr_i      ;  // register access address
+   reg            wr_i        ;  // the IO is a write (1'b1) or read (1'b0)
+   reg   [7:0]    din_i       ;  // write register data
+   wire  [7:0]    dout_o      ;  // read register data
+   wire           int_o       ;  // interrupt line
+   wire           rx_line_i   ;
+   wire           tx_line_o   ;
+      
+   uart #(
+      .CLK_FREQ    (`FPGA_CLK_FREQUENCY) ,
+      .BAUDRATE    (`FPGA_UART_BAUDRATE * 10)
+   ) u_uart (
+      .clk         (clk      ),
+      .rst_n       (rst_n    ),
+      .cs_i        (1'b1     ),
+      .addr_i      (addr_i   ),  // register access address
+      .wr_i        (wr_i     ),  // the IO is a write (1'b1) or read (1'b0)
+      .din_i       (din_i    ),  // write register data
+      .dout_o      (dout_o   ),  // read register data
+      .int_o       (int_o    ),  // interrupt line
+      .rx_line_i   (rx_line_i),
+      .tx_line_o   (tx_line_o)
+   );
+   
+   // make passthru
+   assign rx_line_i = tx_line_o;
+   
+   initial clk = 1'b1;
+   always #10 clk = ~clk;
+   
+   localparam ANOTHER_ADDR = 32'h18000000;
+   initial begin
+      rst_n = 1'b1;
+      addr_i = ANOTHER_ADDR;
+      wr_i = 1'b0;
+      #1;
+      rst_n = 1'b0;
+      #30;
+      rst_n = 1'b1;
+      #60;
+      
+      addr_i = `FPGA_UART_BASE_ADDR + 'h4; // st
+      wr_i = 1'b0;
+      $display("st dout is %x ", dout_o);
+      #20;
+      $display("st dout is %x ", dout_o);
+      #20;
+      addr_i = `FPGA_UART_BASE_ADDR + 'hc; // rx
+      wr_i = 1'b0;
+      #20;
+      $display("rx dout is %x", dout_o);
+      addr_i = `FPGA_UART_BASE_ADDR + 'h8; // tx
+      din_i = "a";
+      wr_i = 1'b1;
+      #20;
+      din_i = "b";
+      #20;
+      din_i = "c";
+      #20;
+      din_i = "d";
+      #20;
+      din_i = "e";
+      #100;
+
+      addr_i = `FPGA_UART_BASE_ADDR + 'h4; // st
+      wr_i = 1'b0;
+      $display("st dout is %x ", dout_o);
+      #100;
+      addr_i = `FPGA_UART_BASE_ADDR + 'hc; // rx
+      wr_i = 1'b0;
+      $display("rx dout is %x", dout_o);
+      #20;
+      addr_i = `FPGA_UART_BASE_ADDR + 'hc; // rx
+      wr_i = 1'b0;
+      $display("rx dout is %x", dout_o);
+      #100;
+      
+      $display("need time to wait for sending done");
+      #12000; // need time to wait for sending done
+      addr_i = `FPGA_UART_BASE_ADDR + 'h4; // st
+      wr_i = 1'b0;
+      $display("st dout is %x ", dout_o);
+      #100;
+      addr_i = `FPGA_UART_BASE_ADDR + 'hc; // rx
+      wr_i = 1'b0;
+      $display("rx dout is %x", dout_o);
+      #20;
+      addr_i = `FPGA_UART_BASE_ADDR + 'hc; // rx
+      wr_i = 1'b0;
+      $display("rx dout is %x", dout_o);
+      #20;
+      addr_i = `FPGA_UART_BASE_ADDR + 'hc; // rx
+      wr_i = 1'b0;
+      $display("rx dout is %x", dout_o);
+      #100;
+      $stop;
+   end
+
+endmodule

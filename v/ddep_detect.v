@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                      
+// Copyright (c) 2023, c.fan                                                     
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -29,9 +29,9 @@
 
 
 /**
- * data dependency detection
- * - general purpose register
+ * instruction data dependency detection
  */
+
  
 module ddep_detect (
    input             clk         ,
@@ -49,6 +49,7 @@ module ddep_detect (
    // from write back, once write back remove that recorded reg index
    //    don't need, because on the time when the reg write back, the regs2wr_r happens to shift out that index
    // input    [3:0]    regwb_idx_i , // write back reg index
+   input             hold_i      ,
    
    // detected conflict
    output            conflict_o  ,
@@ -74,7 +75,7 @@ module ddep_detect (
             regs2wr_r[i] <= INVALID_REGW_INDEX;
          end
       end
-      else begin
+      else if (!hold_i) begin
          // regs2wr_r[0] <= {wen_i,reg_w_idx_i};
          // the dec module shall output wen_i = 0, but i cannot use that as input, 
          // because i have to keep detecting the conflict to know when it disappear,

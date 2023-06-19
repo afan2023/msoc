@@ -27,66 +27,82 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
 //////////////////////////////////////////////////////////////////////////////////
 
-/*
- * pipeline control
+/**
+ * UART transmission module
+ * 8 data bits (1 byte), no parity bit, 1 bit stop
  */
- 
-module pp_ctrl (
-   input                clk               ,  
-   input                rst_n             ,  
-   // stall request on data conflict, from dec mod
-   input                ddep_conflict_i   ,
-   // need a transit cycle between data conflict stall & jump stall
-   input                need_ddep2j_transit_i   ,
-   // b & j stall request
-   input                bj_req_i          ,
-   // b/j jump made, must be one pulse signal
-   input                bj_done_i         , 
-   // request from data mem, signal a data miss & need wait to load data
-   input                mem_dmiss_i       ,
-   
-   // should have seperate stall signals
-   output               stall_2pc_o       ,  // stall to pc
-   output               stall_2dec_o      ,  // stall to dec  
-   output               stall_2alu_o      ,  // stall to alu
-   // let generate output as if it works on a NOP
-   output               asif_nop_2dec_o   ,
-   // hold on all stages till mem
-   output               hold_all_by_mem_o  
+
+`include "fpga_params.v"
+
+module uart_tx #(
+      parameter   CLK_FREQ =  `FPGA_CLK_FREQUENCY,
+      parameter   BAUDRATE =  `FPGA_UART_BAUDRATE
+   )(
+      input             clk      ,
+      input             rst_n    ,
+      input    [7:0]    data_i   , // data to transmit
+      input             en_i     , // enable
+      output reg        tx_o     , // the tx line output
+      output reg        tx_done_o  // tx done pulse signal
    );
+
+   localparam CNT_1BIT_MAX = CLK_FREQ / BAUDRATE - 1; 
+   localparam CNT_1BIT_REGWIDTH = $clog2(CNT_1BIT_MAX);
+   localparam BITS_IN_1BYTE_TX = 10;   // 1 start, 8 data, 1 stop
+   reg [CNT_1BIT_REGWIDTH-1:0] cnt_1bit;
+   reg [4:0] cnt_tx1byte;
    
-   reg   bj_stall_r;
-   reg   init_r;
-   reg   bj_done_r;
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         init_r <= 1'b1;
-         bj_done_r <= 1'b0;
-      end
-      else begin
-         init_r <= 1'b0;
-         bj_done_r <= bj_done_i;
-      end
+   always@(posedge clk or negedge rst_n) begin
+      if(!rst_n)
+         cnt_1bit <= 0;
+      else if(!en_i)
+         cnt_1bit <= 0;
+      else if(cnt_1bit >= CNT_1BIT_MAX)
+         cnt_1bit <= 0;
+      else
+         cnt_1bit <= cnt_1bit + 1'b1;
+   end
+      
+   always@(posedge clk or negedge rst_n) begin
+      if(!rst_n)
+         cnt_tx1byte <= 0;
+      else if (!en_i)
+         cnt_tx1byte <= 0;
+      else if(cnt_tx1byte >= BITS_IN_1BYTE_TX)
+         cnt_tx1byte <= 0;
+      else if(cnt_1bit == CNT_1BIT_MAX)
+         cnt_tx1byte <= cnt_tx1byte + 1'b1;
    end
    
-   always @(posedge clk or negedge rst_n) begin
+   always@(posedge clk or negedge rst_n) begin
       if (!rst_n) begin
-         bj_stall_r <= 1'b0;
+         tx_o <= 1'b1;
+         tx_done_o <= 1'b0;
       end
-      else if (bj_done_i) begin
-         bj_stall_r <= 1'b0;
+      else if (!en_i) begin
+         tx_o <= 1'b1;
+         tx_done_o <= 1'b0;
       end
-      else if (bj_req_i) begin
-         bj_stall_r <= 1'b1;
-      end
+      else case(cnt_tx1byte)
+         0: begin
+            tx_done_o <= 1'b0;
+            if (! tx_done_o)  // 1 clock cycle after the tx_done_o signal
+               tx_o <= 1'b0;  // start
+         end
+         1: tx_o <= data_i[0];
+         2: tx_o <= data_i[1];
+         3: tx_o <= data_i[2];
+         4: tx_o <= data_i[3];
+         5: tx_o <= data_i[4];
+         6: tx_o <= data_i[5];
+         7: tx_o <= data_i[6];
+         8: tx_o <= data_i[7];
+         9: begin
+            tx_o <= 1'b1;     //stop
+         end
+         10: tx_done_o <= 1'b1;
+         default: tx_o <= 1'b1; // won't happen
+      endcase
    end
-   
-   // ignore data dependency by the JR/JLR register on jump done to go next instruction
-   assign stall_2pc_o   = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r)) | bj_req_i | bj_stall_r | need_ddep2j_transit_i | mem_dmiss_i;
-   assign stall_2dec_o  = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r | mem_dmiss_i;
-   assign stall_2alu_o  = init_r ? 1'b0 : mem_dmiss_i;
-   assign asif_nop_2dec_o = (init_r | mem_dmiss_i) ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r;
-   
-   assign hold_all_by_mem_o = init_r ? 1'b0 : mem_dmiss_i;
 
 endmodule

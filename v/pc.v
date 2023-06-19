@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                      
+// Copyright (c) 2023, c.fan                                                     
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -67,7 +67,7 @@ module pc (
          pc_r <= new_pc_i;
       else if(stall_i)
          pc_r <= pc_r; // keep unchanged
-      else if(!halt_i)
+      else // if(!halt_i)
          pc_r <= pc_r + 32'h4;
    end
    

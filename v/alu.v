@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                      
+// Copyright (c) 2023, c.fan                                                     
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -48,9 +48,11 @@ module alu (
    
    // output
    output reg  [31:0]   result_o    ,
-   output reg           flags_chg_o ,
-   output reg  [3:0]    flags_o        
+   output               flags_chg_o ,
+   output reg  [3:0]    flags_o     ,   
    
+   // controlled
+   input                stall_i     
    );
    
    wire  [3:0] opcat;
@@ -157,25 +159,37 @@ module alu (
       end
    end
    
+   reg   flags_chg_r;
    always @(posedge clk or negedge rst_n) begin
       if (!rst_n) begin
          flags_o <= 4'b0;
-         flags_chg_o <= 1'b0;
+         flags_chg_r <= 1'b0;
       end
       else begin
          case (opcat)
             `INSTR_OPCAT_ADDSUB : begin
                flags_o <= {1'b0, arithm_flag_neg, arithm_flag_zero, arithm_flag_ov};
-               flags_chg_o <= 1'b1;
+               flags_chg_r <= stall_i ? 1'b0 : 1'b1;
             end
             default : begin
                flags_o <= 4'b0;
-               flags_chg_o <= 1'b0;
+               flags_chg_r <= 1'b0;
             end
          endcase
       end
    end
    
+//   //assign   flags_chg_o = stall_i ? 1'b0 : flags_chg_r; // simply block the change is not OK
+//   // if the change should happen when stall request arrive, just do it once;
+//   // later it's the kept status & should not change another time during the stall
+//   wire  flags_chg_gate;
+//   reg   stall_ir;
+//   always @(posedge clk) begin
+//      stall_ir <= stall_i;
+//   end
+//   assign flag_chg_gate = (~stall_i) | (stall_i & (~stall_ir));
+//   assign flags_chg_o = flag_chg_gate & flags_chg_r;
+   assign   flags_chg_o = flags_chg_r;
 
 endmodule
 

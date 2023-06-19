@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                     
+// Copyright (c) 2023, c.fan                                                      
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -27,66 +27,14 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
 //////////////////////////////////////////////////////////////////////////////////
 
-/*
- * pipeline control
- */
- 
-module pp_ctrl (
-   input                clk               ,  
-   input                rst_n             ,  
-   // stall request on data conflict, from dec mod
-   input                ddep_conflict_i   ,
-   // need a transit cycle between data conflict stall & jump stall
-   input                need_ddep2j_transit_i   ,
-   // b & j stall request
-   input                bj_req_i          ,
-   // b/j jump made, must be one pulse signal
-   input                bj_done_i         , 
-   // request from data mem, signal a data miss & need wait to load data
-   input                mem_dmiss_i       ,
-   
-   // should have seperate stall signals
-   output               stall_2pc_o       ,  // stall to pc
-   output               stall_2dec_o      ,  // stall to dec  
-   output               stall_2alu_o      ,  // stall to alu
-   // let generate output as if it works on a NOP
-   output               asif_nop_2dec_o   ,
-   // hold on all stages till mem
-   output               hold_all_by_mem_o  
-   );
-   
-   reg   bj_stall_r;
-   reg   init_r;
-   reg   bj_done_r;
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         init_r <= 1'b1;
-         bj_done_r <= 1'b0;
-      end
-      else begin
-         init_r <= 1'b0;
-         bj_done_r <= bj_done_i;
-      end
-   end
-   
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         bj_stall_r <= 1'b0;
-      end
-      else if (bj_done_i) begin
-         bj_stall_r <= 1'b0;
-      end
-      else if (bj_req_i) begin
-         bj_stall_r <= 1'b1;
-      end
-   end
-   
-   // ignore data dependency by the JR/JLR register on jump done to go next instruction
-   assign stall_2pc_o   = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r)) | bj_req_i | bj_stall_r | need_ddep2j_transit_i | mem_dmiss_i;
-   assign stall_2dec_o  = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r | mem_dmiss_i;
-   assign stall_2alu_o  = init_r ? 1'b0 : mem_dmiss_i;
-   assign asif_nop_2dec_o = (init_r | mem_dmiss_i) ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r;
-   
-   assign hold_all_by_mem_o = init_r ? 1'b0 : mem_dmiss_i;
 
-endmodule
+/*
+ * the FPGA parameters
+ */
+
+`define  FPGA_MAX_NUM_DEVICE  16
+ 
+`define  FPGA_CLK_FREQUENCY   50000000
+`define  FPGA_UART_BAUDRATE   115200
+`define  FPGA_UART_BASE_ADDR  32'hffff0100
+ 

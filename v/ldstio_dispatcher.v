@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                     
+// Copyright (c) 2023, c.fan                                                      
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -27,66 +27,72 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
 //////////////////////////////////////////////////////////////////////////////////
 
-/*
- * pipeline control
+/**
+ * load store io dispatcher
+ * for the time being, simply dispatch (mem - cache future, uart, & other IO devices)
+ * for future, the IO is preferable to have kind of IO bus
  */
  
-module pp_ctrl (
-   input                clk               ,  
-   input                rst_n             ,  
-   // stall request on data conflict, from dec mod
-   input                ddep_conflict_i   ,
-   // need a transit cycle between data conflict stall & jump stall
-   input                need_ddep2j_transit_i   ,
-   // b & j stall request
-   input                bj_req_i          ,
-   // b/j jump made, must be one pulse signal
-   input                bj_done_i         , 
-   // request from data mem, signal a data miss & need wait to load data
-   input                mem_dmiss_i       ,
-   
-   // should have seperate stall signals
-   output               stall_2pc_o       ,  // stall to pc
-   output               stall_2dec_o      ,  // stall to dec  
-   output               stall_2alu_o      ,  // stall to alu
-   // let generate output as if it works on a NOP
-   output               asif_nop_2dec_o   ,
-   // hold on all stages till mem
-   output               hold_all_by_mem_o  
+module ldstio_dispatcher(
+   // unified load store interface  
+   input       [31:0]   addr_i      ,
+   input                en_i        ,
+   input                wr_i        ,
+   input       [31:0]   wdata_i     ,
+   input       [1:0]    wscope_i    ,
+   // output for memory interface
+   output reg  [31:0]   mem_addr_o  ,
+   output reg           mem_en_o    ,
+   output reg           mem_wr_o    ,
+   output reg  [31:0]   mem_wdata_o ,
+   output reg  [1:0]    mem_wscope_o, 
+   // output for IO
+   output reg  [31:0]   io_addr_o   ,
+   output reg           io_en_o     ,
+   output reg           io_wr_o     ,
+   output reg  [31:0]   io_wdata_o  
    );
    
-   reg   bj_stall_r;
-   reg   init_r;
-   reg   bj_done_r;
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         init_r <= 1'b1;
-         bj_done_r <= 1'b0;
+   // just a simple split
+   // maybe kind of configuration table later
+   parameter   IO_SPACE_BEGIN    =  32'hffff0000;
+   parameter   IO_SPACE_END      =  32'hffffffff;   
+   parameter   MEM_SPACE0_BEGIN  =  32'h00000000;
+   parameter   MEM_SPACE0_END    =  32'h00010000;
+   parameter   MEM_SPACE1_BEGIN  =  32'h80000000;
+   parameter   MEM_SPACE1_END    =  32'h81ffffff;
+   
+   always @(*) begin
+      if ((addr_i >= IO_SPACE_BEGIN) && (addr_i <= IO_SPACE_END)) begin
+         io_addr_o   = addr_i    ;
+         io_en_o     = en_i      ;
+         io_wr_o     = wr_i      ;
+         io_wdata_o  = wdata_i   ; 
       end
       else begin
-         init_r <= 1'b0;
-         bj_done_r <= bj_done_i;
+         io_addr_o   = 32'b0 ;
+         io_en_o     = 1'b0  ;
+         io_wr_o     = 1'b0  ;
+         io_wdata_o  = 32'b0 ; 
       end
    end
    
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         bj_stall_r <= 1'b0;
+   always @(*) begin
+      if (((addr_i >= MEM_SPACE0_BEGIN) && (addr_i <= MEM_SPACE0_END))
+         || ((addr_i >= MEM_SPACE1_BEGIN) && (addr_i <= MEM_SPACE1_END))) begin
+         mem_addr_o  = addr_i    ;
+         mem_en_o    = en_i      ;
+         mem_wr_o    = wr_i      ;
+         mem_wdata_o = wdata_i   ; 
+         mem_wscope_o= wscope_i  ;
       end
-      else if (bj_done_i) begin
-         bj_stall_r <= 1'b0;
+      else begin
+         mem_addr_o  = 32'b0 ;
+         mem_en_o    = 1'b0  ;
+         mem_wr_o    = 1'b0  ;
+         mem_wdata_o = 32'b0 ; 
+         mem_wscope_o= 2'b0  ;
       end
-      else if (bj_req_i) begin
-         bj_stall_r <= 1'b1;
-      end
-   end
+   end   
    
-   // ignore data dependency by the JR/JLR register on jump done to go next instruction
-   assign stall_2pc_o   = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r)) | bj_req_i | bj_stall_r | need_ddep2j_transit_i | mem_dmiss_i;
-   assign stall_2dec_o  = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r | mem_dmiss_i;
-   assign stall_2alu_o  = init_r ? 1'b0 : mem_dmiss_i;
-   assign asif_nop_2dec_o = (init_r | mem_dmiss_i) ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r;
-   
-   assign hold_all_by_mem_o = init_r ? 1'b0 : mem_dmiss_i;
-
 endmodule

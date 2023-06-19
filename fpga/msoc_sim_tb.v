@@ -1,5 +1,5 @@
 //////////////////////////////////////////////////////////////////////////////////
-// Copyright (c) 2023, c.fan                                                     
+// Copyright (c) 2023, c.fan                                                      
 //                                                                                
 // Redistribution and use in source and binary forms, with or without             
 // modification, are permitted provided that the following conditions are met:    
@@ -27,66 +27,54 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.           
 //////////////////////////////////////////////////////////////////////////////////
 
-/*
- * pipeline control
- */
- 
-module pp_ctrl (
-   input                clk               ,  
-   input                rst_n             ,  
-   // stall request on data conflict, from dec mod
-   input                ddep_conflict_i   ,
-   // need a transit cycle between data conflict stall & jump stall
-   input                need_ddep2j_transit_i   ,
-   // b & j stall request
-   input                bj_req_i          ,
-   // b/j jump made, must be one pulse signal
-   input                bj_done_i         , 
-   // request from data mem, signal a data miss & need wait to load data
-   input                mem_dmiss_i       ,
+`timescale 1ns/100ps
+
+module msoc_sim_tb;
    
-   // should have seperate stall signals
-   output               stall_2pc_o       ,  // stall to pc
-   output               stall_2dec_o      ,  // stall to dec  
-   output               stall_2alu_o      ,  // stall to alu
-   // let generate output as if it works on a NOP
-   output               asif_nop_2dec_o   ,
-   // hold on all stages till mem
-   output               hold_all_by_mem_o  
+   reg   clk            ;
+   reg   rst_line_i     ;
+   wire  uart_rx_line_i ;
+   wire  uart_tx_line_o ; 
+   msoc u_msoc (
+      .clk_line_i       (clk            ),
+      .rst_line_i       (rst_line_i     ),
+      .uart_rx_line_i   (uart_rx_line_i ),
+      .uart_tx_line_o   (uart_tx_line_o )     
    );
    
-   reg   bj_stall_r;
-   reg   init_r;
-   reg   bj_done_r;
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         init_r <= 1'b1;
-         bj_done_r <= 1'b0;
-      end
-      else begin
-         init_r <= 1'b0;
-         bj_done_r <= bj_done_i;
-      end
+   wire        rst_n       ;
+   wire        rx_line_i   ;
+   wire  [7:0] rx_data_o   ;
+   wire        rx_dvalid_o ;
+   uart_rx u_rx (
+      .clk      (clk          ),
+      .rst_n    (rst_n        ),
+      .rx_i     (rx_line_i    ),
+      .data_o   (rx_data_o    ),
+      .dvalid_o (rx_dvalid_o  )     // valid data received
+   );
+   reg      rst_n_r1, rst_n_r2;
+   always @(posedge clk) begin
+      rst_n_r1 <= rst_line_i;
+      rst_n_r2 <= rst_n_r1;
+   end
+   assign rst_n = rst_n_r2;
+   assign rx_line_i  =  uart_tx_line_o;
+   
+   initial clk = 1'b1;
+   always #10 clk = ~clk;
+   
+   initial begin
+      rst_line_i = 1'b1;
+      #1;
+      rst_line_i = 1'b0;
+      #101;
+      rst_line_i = 1'b1;
+      #100;
+      wait(rx_dvalid_o);
+      $display("received data = %d\n", rx_data_o);
+      #1000;
+      $stop;
    end
    
-   always @(posedge clk or negedge rst_n) begin
-      if (!rst_n) begin
-         bj_stall_r <= 1'b0;
-      end
-      else if (bj_done_i) begin
-         bj_stall_r <= 1'b0;
-      end
-      else if (bj_req_i) begin
-         bj_stall_r <= 1'b1;
-      end
-   end
-   
-   // ignore data dependency by the JR/JLR register on jump done to go next instruction
-   assign stall_2pc_o   = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r)) | bj_req_i | bj_stall_r | need_ddep2j_transit_i | mem_dmiss_i;
-   assign stall_2dec_o  = init_r ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r | mem_dmiss_i;
-   assign stall_2alu_o  = init_r ? 1'b0 : mem_dmiss_i;
-   assign asif_nop_2dec_o = (init_r | mem_dmiss_i) ? 1'b0 : (ddep_conflict_i & (~bj_done_r))| bj_stall_r;
-   
-   assign hold_all_by_mem_o = init_r ? 1'b0 : mem_dmiss_i;
-
 endmodule
